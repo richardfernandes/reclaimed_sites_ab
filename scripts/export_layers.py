@@ -9,6 +9,18 @@ import math
 import time
 from shapely.geometry import Polygon, MultiPolygon
 
+def simplify_geometry(geom, tolerance=0.1):
+    if geom.geom_type in ['Polygon', 'MultiPolygon']:
+        return geom.simplify(tolerance, preserve_topology=True)
+    return geom
+
+def count_points(geom):
+    if isinstance(geom, Polygon):
+        return len(geom.exterior.coords) + sum(len(inner.coords) for inner in geom.interiors)
+    elif isinstance(geom, MultiPolygon):
+        return sum(count_points(poly) for poly in geom.geoms)
+    return 0
+
 def assets_exists(asset_id):
     """Validate if asset exists in GEE"""
     try:
@@ -70,7 +82,7 @@ def process_layer(layer_name, layer_data):
     print(f'Total number of {layer_name}: {len(data)}')
     print(f'Original data CRS: {data.crs}')
 
-    batch_size = 500
+    batch_size = 1
 
     num_batches = math.ceil(len(data) / batch_size)
     print(f'Total of batches to export: {num_batches}')
@@ -151,32 +163,48 @@ if __name__ == "__main__":
     # Read data
     sys.path.append(os.path.abspath(os.path.join('..')))
 
-    reservoirs = gpd.read_file('data_check/HFI2021.gdb',
-                                    layer = 'o01_Reservoirs_HFI_2021')
-    reservoirs = reservoirs.clean_names()
-    reservoirs = reservoirs[['feature_ty', 'geometry']]
+    # reservoirs = gpd.read_file('data_check/HFI2021.gdb',
+    #                                 layer = 'o01_Reservoirs_HFI_2021')
+    # reservoirs = reservoirs.clean_names()
+    # reservoirs = reservoirs[['feature_ty', 'geometry']]
 
-    roads = gpd.read_file('data_check/HFI2021.gdb',
-                                    layer = 'o03_Roads_HFI_2021')
-    roads = roads.clean_names()
-    roads = roads[['feature_ty', 'geometry']]
+    # roads = gpd.read_file('data_check/HFI2021.gdb',
+    #                                 layer = 'o03_Roads_HFI_2021')
+    # roads = roads.clean_names()
+    # roads = roads[['feature_ty', 'geometry']]
 
-    residentials = gpd.read_file('data_check/HFI2021.gdb',
-                                    layer = 'o15_Residentials_HFI_2021')
-    residentials = residentials.clean_names()
-    residentials = residentials[['feature_ty', 'geometry']]
+    # residentials = gpd.read_file('data_check/HFI2021.gdb',
+    #                                 layer = 'o15_Residentials_HFI_2021')
+    # residentials = residentials.clean_names()
+    # residentials = residentials[['feature_ty', 'geometry']]
 
-    industrials = gpd.read_file('data_check/HFI2021.gdb',
-                                    layer = 'o08_Industrials_HFI_2021')
-    industrials = industrials.clean_names()
-    industrials = industrials[['feature_ty', 'geometry']]
-    industrials = industrials.dropna(subset=['geometry'])
-
-    fires = gpd.read_file('data_check/NFDB_poly_20210707.shp')
+    # industrials = gpd.read_file('data_check/HFI2021.gdb',
+    #                                 layer = 'o08_Industrials_HFI_2021')
+    # industrials = industrials.clean_names()
+    # industrials = industrials[['feature_ty', 'geometry']]
+    # industrials = industrials.dropna(subset=['geometry'])
+    
+    
+    # fires = gpd.read_file('data_check/NFDB_poly_20210707.shp')
+    # Option to simplify fires layer
+    fires = gpd.read_file('data_check/NFDB_poly_20210707.shp', 
+                      engine='fiona', 
+                      parse_geometry_opts={'METHOD': 'SKIP'})
     fires = fires.clean_names()
     fires = fires[fires['src_agency'] == "AB"]
     fires = fires[['fire_id', 'rep_date', 'geometry']]
     fires['geometry'] = fires['geometry'].apply(remove_z)
+    fires['geometry'] = fires['geometry'].apply(lambda geom: simplify_geometry(geom, tolerance = 1.5))
+
+    # Print statistics before simplification
+    print(f"Number of geometries: {len(fires)}")
+    print(f"Total number of points before simplification: {sum(fires.geometry.apply(count_points))}")
+
+    # Apply geometry simplification
+    fires['geometry'] = fires['geometry'].apply(lambda geom: simplify_geometry(geom))
+
+    # Print statistics after simplification
+    print(f"Total number of points after simplification: {sum(fires.geometry.apply(count_points))}")
     
     abandoned_wells = gpd.read_file('data_check/HFI2021.gdb',
                                 layer = 'o16_WellsAbnd_HFI_2021')
@@ -201,12 +229,12 @@ if __name__ == "__main__":
     )
 
     layers = [
-        ('reservoirs', reservoirs),
-        ('residentials', residentials),
-        ('roads', roads),
-        ('industrials', industrials)
-        # ('fires', fires)
-        ('abandoned_wells', selected_polygons)
+        # ('reservoirs', reservoirs),
+        # ('residentials', residentials),
+        # ('roads', roads),
+        # ('industrials', industrials),
+        ('fires', fires)
+        # ('abandoned_wells', selected_polygons)
     ]
 
     # Process each layer
