@@ -1,9 +1,5 @@
 # Derivation of Indicators from Satellite Observations of Vegetation Essential Climate Variables Reclaimed Well and Mine Sites in Alberta, Canada
 
-![GitHub release (with filter)](https://img.shields.io/github/v/release/ronnyhdez/reclaimed_sites_ab)
-
-
-:globe_with_meridians: https://ronnyhdez.github.io/reclaimed_sites_ab/
 
 ## Datasets
 
